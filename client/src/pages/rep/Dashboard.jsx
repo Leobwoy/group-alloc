@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { repAPI, isAuthenticated, clearToken } from '../../lib/api'
+import { WhatsAppIcon, TrashIcon, LockIcon, UnlockIcon, CopyIcon, CheckIcon } from '../../components/Icons'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -103,7 +104,7 @@ export default function Dashboard() {
 
   function shareWhatsApp(classItem) {
     const url = `${window.location.origin}/submit/${classItem.class_code}`
-    const text = `👋 Register your presentation group for *${classItem.class_name}* here:\n${url}`
+    const text = `Register your presentation group for *${classItem.class_name}* here:\n${url}`
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank')
   }
 
@@ -192,9 +193,13 @@ export default function Dashboard() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
                     <h3 style={{ margin: 0 }}>{c.class_name}</h3>
                     {c.is_locked ? (
-                      <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>🔒 Submissions Closed</span>
+                      <span className="badge badge-warning" style={{ fontSize: '0.75rem', gap: '0.25rem' }}>
+                        <LockIcon size={12} /> Closed
+                      </span>
                     ) : (
-                      <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>🟢 Open</span>
+                      <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>
+                        <span className="status-dot"></span> Open
+                      </span>
                     )}
                   </div>
                   <p style={{ margin: 0 }}>Code: <strong>{c.class_code}</strong></p>
@@ -214,30 +219,48 @@ export default function Dashboard() {
                 <button
                   className="btn btn-secondary btn-sm"
                   onClick={() => copyLink(c.class_code)}
-                  style={{ minWidth: '90px' }}
+                  style={{ minWidth: '90px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                 >
-                  {copiedCode === c.class_code ? '✓ Copied' : 'Copy Link'}
+                  {copiedCode === c.class_code ? (
+                    <>
+                      <CheckIcon size={14} /> Copied
+                    </>
+                  ) : (
+                    <>
+                      <CopyIcon size={14} /> Copy Link
+                    </>
+                  )}
                 </button>
                 <button
                   className="btn btn-success btn-sm"
                   onClick={() => shareWhatsApp(c)}
-                  style={{ minWidth: '90px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                  style={{ minWidth: '100px', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
                 >
-                  <span>💬 WhatsApp</span>
+                  <WhatsAppIcon size={14} /> WhatsApp
                 </button>
                 <button
                   className={`btn btn-sm ${c.is_locked ? 'btn-secondary' : 'btn-warning'}`}
                   onClick={(e) => handleToggleLock(c, e)}
                   title={c.is_locked ? 'Unlock submissions' : 'Lock submissions'}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                 >
-                  {c.is_locked ? '🔓 Unlock' : '🔒 Lock'}
+                  {c.is_locked ? (
+                    <>
+                      <UnlockIcon size={14} /> Unlock
+                    </>
+                  ) : (
+                    <>
+                      <LockIcon size={14} /> Lock
+                    </>
+                  )}
                 </button>
                 <button
                   className="btn btn-danger btn-sm"
                   onClick={() => setClassToDelete(c)}
                   title="Delete this class"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                 >
-                  🗑️ Delete
+                  <TrashIcon size={14} /> Delete
                 </button>
               </div>
             </div>
@@ -248,7 +271,7 @@ export default function Dashboard() {
         {classToDelete && (
           <div className="modal-backdrop">
             <div className="modal-card">
-              <h3 style={{ color: '#991b1b', marginBottom: '0.5rem' }}>Delete Class?</h3>
+              <h3 style={{ color: '#991b1b', marginBottom: '0.5rem' }}>Delete Class</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.25rem', lineHeight: 1.5 }}>
                 Are you sure you want to delete <strong>{classToDelete.class_name}</strong>? This will permanently delete the class and all associated group submissions.
               </p>
@@ -265,7 +288,7 @@ export default function Dashboard() {
                   onClick={confirmDeleteClass}
                   disabled={deleting}
                 >
-                  {deleting ? 'Deleting...' : 'Yes, Delete Class'}
+                  {deleting ? 'Deleting...' : 'Delete Class'}
                 </button>
               </div>
             </div>

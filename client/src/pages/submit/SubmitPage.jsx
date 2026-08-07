@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { submitAPI } from '../../lib/api'
+import { CheckIcon, LockIcon, AlertCircleIcon } from '../../components/Icons'
 
 export default function SubmitPage() {
   const { classCode } = useParams()
@@ -62,7 +63,9 @@ export default function SubmitPage() {
         </header>
         <main>
           <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🔍</div>
+            <div style={{ color: 'var(--text-muted)', marginBottom: '0.75rem', display: 'flex', justifyContent: 'center' }}>
+              <AlertCircleIcon size={44} />
+            </div>
             <h2 className="card-title">Invalid Class Link</h2>
             <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', lineHeight: 1.5 }}>
               This class code does not exist. Please check the link your course rep shared.
@@ -98,11 +101,13 @@ export default function SubmitPage() {
           </div>
         </header>
         <main>
-          <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem', border: '2px solid #fde68a' }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🔒</div>
+          <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem', border: '1.5px solid #fde68a' }}>
+            <div style={{ color: '#b45309', marginBottom: '0.75rem', display: 'flex', justifyContent: 'center' }}>
+              <LockIcon size={40} />
+            </div>
             <h2 className="card-title" style={{ color: '#92400e' }}>Submissions Closed</h2>
             <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', lineHeight: 1.5 }}>
-              The course representative has currently locked submissions for <strong>{classInfo?.class_name}</strong>.
+              The course representative has locked submissions for <strong>{classInfo?.class_name}</strong>.
             </p>
             <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: '1rem' }}>
               If you have not registered your group yet, please contact your course representative directly.
@@ -130,8 +135,10 @@ export default function SubmitPage() {
           </div>
         </header>
         <main>
-          <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem', border: '2px solid #fed7aa' }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🛑</div>
+          <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem', border: '1.5px solid #fed7aa' }}>
+            <div style={{ color: '#c2410c', marginBottom: '0.75rem', display: 'flex', justifyContent: 'center' }}>
+              <AlertCircleIcon size={40} />
+            </div>
             <h2 className="card-title" style={{ color: '#9a3412' }}>All Group Slots Claimed</h2>
             <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', lineHeight: 1.5 }}>
               This class has reached its maximum limit of <strong>{classInfo?.max_groups} groups</strong>.
@@ -163,7 +170,9 @@ export default function SubmitPage() {
         </header>
         <main>
           <div className="card assigned-card">
-            <div className="assigned-icon">✓</div>
+            <div className="assigned-icon">
+              <CheckIcon size={24} />
+            </div>
             <h2 className="card-title" style={{ marginBottom: '0.25rem' }}>Your Group Number</h2>
             <div className="assigned-number">Group #{result.group_number}</div>
 

@@ -4,6 +4,7 @@ import { repAPI, isAuthenticated, clearToken } from '../../lib/api'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
+import { WhatsAppIcon, TrashIcon, LockIcon, UnlockIcon, CopyIcon, CheckIcon, EditIcon } from '../../components/Icons'
 
 export default function ClassDetail() {
   const { id } = useParams()
@@ -124,7 +125,7 @@ export default function ClassDetail() {
   function shareWhatsApp() {
     if (!classInfo) return
     const url = `${window.location.origin}/submit/${classInfo.class_code}`
-    const text = `👋 Register your presentation group for *${classInfo.class_name}* here:\n${url}`
+    const text = `Register your presentation group for *${classInfo.class_name}* here:\n${url}`
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank')
   }
 
@@ -270,18 +271,22 @@ export default function ClassDetail() {
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={startEditing}
-                style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', minHeight: '26px' }}
+                style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', minHeight: '26px', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
                 title="Edit class name or max limit"
               >
-                ✏️ Edit
+                <EditIcon size={12} /> Edit
               </button>
             </div>
             <div className="brand-sub" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <span>Code: <strong>{classInfo?.class_code || '...'}</strong></span>
               {classInfo?.is_locked ? (
-                <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>🔒 Closed</span>
+                <span className="badge badge-warning" style={{ fontSize: '0.75rem', gap: '0.25rem' }}>
+                  <LockIcon size={12} /> Closed
+                </span>
               ) : (
-                <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>🟢 Open</span>
+                <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>
+                  <span className="status-dot"></span> Open
+                </span>
               )}
             </div>
           </div>
@@ -300,25 +305,43 @@ export default function ClassDetail() {
         {/* Quick Share and Control Bar */}
         <div className="card" style={{ padding: '0.75rem 1rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button className="btn btn-secondary btn-sm" onClick={copySubmissionLink}>
-              {copied ? '✓ Link Copied' : '📋 Copy Link'}
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={copySubmissionLink}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              {copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+              {copied ? 'Link Copied' : 'Copy Link'}
             </button>
-            <button className="btn btn-success btn-sm" onClick={shareWhatsApp}>
-              💬 WhatsApp Share
+            <button
+              className="btn btn-success btn-sm"
+              onClick={shareWhatsApp}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <WhatsAppIcon size={14} /> WhatsApp Share
             </button>
             <button
               className={`btn btn-sm ${classInfo?.is_locked ? 'btn-secondary' : 'btn-warning'}`}
               onClick={handleToggleLock}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
             >
-              {classInfo?.is_locked ? '🔓 Open Submissions' : '🔒 Lock Submissions'}
+              {classInfo?.is_locked ? (
+                <>
+                  <UnlockIcon size={14} /> Open Submissions
+                </>
+              ) : (
+                <>
+                  <LockIcon size={14} /> Lock Submissions
+                </>
+              )}
             </button>
           </div>
           <button
             className="btn btn-danger btn-sm"
             onClick={() => setClassToDelete(true)}
-            style={{ marginLeft: 'auto' }}
+            style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
           >
-            🗑️ Delete Class
+            <TrashIcon size={14} /> Delete Class
           </button>
         </div>
 
@@ -386,10 +409,11 @@ export default function ClassDetail() {
                           <button
                             className="btn btn-danger btn-sm"
                             onClick={() => setGroupToDelete(g)}
-                            style={{ padding: '0.2rem 0.5rem', minHeight: '28px', fontSize: '0.75rem' }}
+                            style={{ padding: '0.25rem 0.5rem', minHeight: '28px' }}
                             title="Remove group"
+                            aria-label="Remove group"
                           >
-                            🗑️
+                            <TrashIcon size={13} />
                           </button>
                         </td>
                       </tr>
@@ -409,10 +433,11 @@ export default function ClassDetail() {
                         <button
                           className="btn btn-danger btn-sm"
                           onClick={() => setGroupToDelete(g)}
-                          style={{ padding: '0.2rem 0.45rem', minHeight: '26px', fontSize: '0.75rem' }}
+                          style={{ padding: '0.25rem 0.45rem', minHeight: '26px' }}
                           title="Remove group"
+                          aria-label="Remove group"
                         >
-                          🗑️
+                          <TrashIcon size={13} />
                         </button>
                       </div>
                     </div>
@@ -486,7 +511,7 @@ export default function ClassDetail() {
         {groupToDelete && (
           <div className="modal-backdrop">
             <div className="modal-card">
-              <h3 style={{ color: '#991b1b', marginBottom: '0.5rem' }}>Remove Group Submission?</h3>
+              <h3 style={{ color: '#991b1b', marginBottom: '0.5rem' }}>Remove Group Submission</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.25rem', lineHeight: 1.5 }}>
                 Are you sure you want to remove <strong>Group #{groupToDelete.group_number} ({groupToDelete.group_name})</strong>?
               </p>
@@ -503,7 +528,7 @@ export default function ClassDetail() {
                   onClick={confirmDeleteGroup}
                   disabled={actionLoading}
                 >
-                  {actionLoading ? 'Removing...' : 'Yes, Remove Group'}
+                  {actionLoading ? 'Removing...' : 'Remove Group'}
                 </button>
               </div>
             </div>
@@ -514,7 +539,7 @@ export default function ClassDetail() {
         {classToDelete && (
           <div className="modal-backdrop">
             <div className="modal-card">
-              <h3 style={{ color: '#991b1b', marginBottom: '0.5rem' }}>Delete Entire Class?</h3>
+              <h3 style={{ color: '#991b1b', marginBottom: '0.5rem' }}>Delete Entire Class</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.25rem', lineHeight: 1.5 }}>
                 Are you sure you want to delete <strong>{classInfo?.class_name}</strong>? This action is permanent and will remove all {groups.length} group submissions.
               </p>
@@ -531,7 +556,7 @@ export default function ClassDetail() {
                   onClick={confirmDeleteClass}
                   disabled={actionLoading}
                 >
-                  {actionLoading ? 'Deleting...' : 'Yes, Delete Class'}
+                  {actionLoading ? 'Deleting...' : 'Delete Class'}
                 </button>
               </div>
             </div>
