@@ -67,9 +67,14 @@ async function initDB() {
   }
 }
 
-// Start server
-initDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`[Server] Running on http://localhost:${PORT}`);
+// Start server if executed directly
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+  initDB().then(() => {
+    app.listen(PORT, () => {
+      console.log(`[Server] Running on http://localhost:${PORT}`);
+    });
   });
-});
+}
+
+module.exports = app;
+module.exports.initDB = initDB;
