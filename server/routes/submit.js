@@ -3,11 +3,14 @@ const pool = require('../db/pool');
 
 const router = express.Router();
 
-// GET /api/submit/:classCode — validate class code, return class name
+// GET /api/submit/:classCode — validate class code, return class status
 router.get('/:classCode', async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, class_name, class_code FROM tenants WHERE class_code = $1',
+      `SELECT t.id, t.class_name, t.class_code, t.is_locked, t.max_groups,
+         (SELECT COUNT(*)::int FROM groups g WHERE g.tenant_id = t.id) AS total_groups
+       FROM tenants t 
+       WHERE t.class_code = $1`,
       [req.params.classCode]
     );
 
@@ -15,7 +18,15 @@ router.get('/:classCode', async (req, res) => {
       return res.status(404).json({ error: 'Invalid class code.' });
     }
 
-    res.json({ class: result.rows[0] });
+    const tenant = result.rows[0];
+    const isFull = tenant.max_groups ? tenant.total_groups >= tenant.max_groups : false;
+
+    res.json({
+      class: {
+        ...tenant,
+        is_full: isFull
+      }
+    });
   } catch (err) {
     console.error('[Validate Code Error]', err.message);
     res.status(500).json({ error: 'Server error.' });
@@ -35,9 +46,12 @@ router.post('/:classCode', async (req, res) => {
 
   const client = await pool.connect();
   try {
-    // Resolve tenant
+    // Resolve tenant with lock and cap checks
     const tenantResult = await client.query(
-      'SELECT id FROM tenants WHERE class_code = $1',
+      `SELECT t.id, t.is_locked, t.max_groups,
+         (SELECT COUNT(*)::int FROM groups g WHERE g.tenant_id = t.id) AS total_groups
+       FROM tenants t 
+       WHERE t.class_code = $1`,
       [req.params.classCode]
     );
 
@@ -46,11 +60,23 @@ router.post('/:classCode', async (req, res) => {
       return res.status(404).json({ error: 'Invalid class code.' });
     }
 
-    const tenantId = tenantResult.rows[0].id;
+    const tenant = tenantResult.rows[0];
+
+    if (tenant.is_locked) {
+      client.release();
+      return res.status(403).json({ error: 'Submissions for this class are currently locked by the course rep.' });
+    }
+
+    if (tenant.max_groups && tenant.total_groups >= tenant.max_groups) {
+      client.release();
+      return res.status(403).json({ error: 'All group allocation slots for this class have been filled.' });
+    }
+
+    const tenantId = tenant.id;
 
     await client.query('BEGIN');
 
-    // Atomic counter increment — the database serializes concurrent hits on the same row
+    // Atomic counter increment
     const counterResult = await client.query(
       'UPDATE tenant_counters SET next_number = next_number + 1 WHERE tenant_id = $1 RETURNING next_number - 1 AS allocated_number',
       [tenantId]

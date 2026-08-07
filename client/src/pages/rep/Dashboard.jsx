@@ -8,9 +8,12 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [newClassName, setNewClassName] = useState('')
+  const [newMaxGroups, setNewMaxGroups] = useState('')
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [copiedCode, setCopiedCode] = useState(null)
+  const [classToDelete, setClassToDelete] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   const repName = localStorage.getItem('rep_name') || 'Course Rep'
 
@@ -45,14 +48,43 @@ export default function Dashboard() {
     setError('')
 
     try {
-      await repAPI.createClass({ class_name: newClassName.trim() })
+      await repAPI.createClass({
+        class_name: newClassName.trim(),
+        max_groups: newMaxGroups ? parseInt(newMaxGroups, 10) : null
+      })
       setNewClassName('')
+      setNewMaxGroups('')
       setShowForm(false)
       await loadClasses()
     } catch (err) {
       setError(err.message)
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function handleToggleLock(classItem, e) {
+    e.preventDefault()
+    e.stopPropagation()
+    try {
+      await repAPI.updateClass(classItem.id, { is_locked: !classItem.is_locked })
+      await loadClasses()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function confirmDeleteClass() {
+    if (!classToDelete) return
+    setDeleting(true)
+    try {
+      await repAPI.deleteClass(classToDelete.id)
+      setClassToDelete(null)
+      await loadClasses()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -67,6 +99,12 @@ export default function Dashboard() {
     navigator.clipboard.writeText(url)
     setCopiedCode(classCode)
     setTimeout(() => setCopiedCode(null), 2000)
+  }
+
+  function shareWhatsApp(classItem) {
+    const url = `${window.location.origin}/submit/${classItem.class_code}`
+    const text = `👋 Register your presentation group for *${classItem.class_name}* here:\n${url}`
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   return (
@@ -98,23 +136,41 @@ export default function Dashboard() {
         </div>
 
         {showForm && (
-          <div className="card" style={{ padding: 'clamp(1rem, 3vw, 1.25rem)' }}>
-            <form onSubmit={handleCreate} className="create-class-form">
-              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                <label className="form-label">Class Name</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. CS401 Software Engineering"
-                  required
-                  value={newClassName}
-                  onChange={e => setNewClassName(e.target.value)}
-                  autoFocus
-                />
+          <div className="card" style={{ padding: 'clamp(1rem, 3vw, 1.25rem)', marginBottom: '1.5rem' }}>
+            <form onSubmit={handleCreate}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Class Name *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. CS401 Software Engineering"
+                    required
+                    value={newClassName}
+                    onChange={e => setNewClassName(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Max Groups (Optional)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="form-input"
+                    placeholder="e.g. 15 (leave blank for unlimited)"
+                    value={newMaxGroups}
+                    onChange={e => setNewMaxGroups(e.target.value)}
+                  />
+                </div>
               </div>
-              <button type="submit" className="btn btn-primary" disabled={creating} style={{ flexShrink: 0 }}>
-                {creating ? 'Creating...' : 'Create Class'}
-              </button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowForm(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={creating}>
+                  {creating ? 'Creating...' : 'Create Class'}
+                </button>
+              </div>
             </form>
           </div>
         )}
@@ -133,15 +189,22 @@ export default function Dashboard() {
             <div key={c.id} className="class-card-wrapper">
               <Link to={`/admin/classes/${c.id}`} className="class-card">
                 <div className="class-card-info">
-                  <h3>{c.class_name}</h3>
-                  <p>Code: <strong>{c.class_code}</strong></p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.25rem' }}>
+                    <h3 style={{ margin: 0 }}>{c.class_name}</h3>
+                    {c.is_locked ? (
+                      <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>🔒 Submissions Closed</span>
+                    ) : (
+                      <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>🟢 Open</span>
+                    )}
+                  </div>
+                  <p style={{ margin: 0 }}>Code: <strong>{c.class_code}</strong></p>
                 </div>
                 <div className="class-card-meta">
                   <span className="count">{c.group_count}</span>
-                  group{c.group_count == 1 ? '' : 's'}
+                  {c.max_groups ? ` / ${c.max_groups} groups` : ` group${c.group_count == 1 ? '' : 's'}`}
                 </div>
               </Link>
-              <div className="share-box">
+              <div className="share-box" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <input
                   className="share-input"
                   readOnly
@@ -153,16 +216,65 @@ export default function Dashboard() {
                   onClick={() => copyLink(c.class_code)}
                   style={{ minWidth: '90px' }}
                 >
-                  {copiedCode === c.class_code ? 'Copied!' : 'Copy Link'}
+                  {copiedCode === c.class_code ? '✓ Copied' : 'Copy Link'}
+                </button>
+                <button
+                  className="btn btn-success btn-sm"
+                  onClick={() => shareWhatsApp(c)}
+                  style={{ minWidth: '90px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                >
+                  <span>💬 WhatsApp</span>
+                </button>
+                <button
+                  className={`btn btn-sm ${c.is_locked ? 'btn-secondary' : 'btn-warning'}`}
+                  onClick={(e) => handleToggleLock(c, e)}
+                  title={c.is_locked ? 'Unlock submissions' : 'Lock submissions'}
+                >
+                  {c.is_locked ? '🔓 Unlock' : '🔒 Lock'}
+                </button>
+                <button
+                  className="btn btn-danger btn-sm"
+                  onClick={() => setClassToDelete(c)}
+                  title="Delete this class"
+                >
+                  🗑️ Delete
                 </button>
               </div>
             </div>
           ))
         )}
+
+        {/* Delete Confirmation Modal */}
+        {classToDelete && (
+          <div className="modal-backdrop">
+            <div className="modal-card">
+              <h3 style={{ color: '#991b1b', marginBottom: '0.5rem' }}>Delete Class?</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+                Are you sure you want to delete <strong>{classToDelete.class_name}</strong>? This will permanently delete the class and all associated group submissions.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setClassToDelete(null)}
+                  disabled={deleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-danger btn-sm"
+                  onClick={confirmDeleteClass}
+                  disabled={deleting}
+                >
+                  {deleting ? 'Deleting...' : 'Yes, Delete Class'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       <footer className="page-footer">
-        <p>Group Number Allocation System</p>
+        <p>Group Number Allocation System • Rep Dashboard</p>
       </footer>
     </div>
   )

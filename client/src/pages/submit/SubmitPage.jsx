@@ -4,7 +4,7 @@ import { submitAPI } from '../../lib/api'
 
 export default function SubmitPage() {
   const { classCode } = useParams()
-  const [className, setClassName] = useState('')
+  const [classInfo, setClassInfo] = useState(null)
   const [validating, setValidating] = useState(true)
   const [invalid, setInvalid] = useState(false)
 
@@ -21,7 +21,7 @@ export default function SubmitPage() {
   async function validateCode() {
     try {
       const data = await submitAPI.validateCode(classCode)
-      setClassName(data.class.class_name)
+      setClassInfo(data.class)
     } catch {
       setInvalid(true)
     } finally {
@@ -61,9 +61,10 @@ export default function SubmitPage() {
           </div>
         </header>
         <main>
-          <div className="card" style={{ textAlign: 'center' }}>
-            <h2 className="card-title">Invalid Link</h2>
-            <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+          <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🔍</div>
+            <h2 className="card-title">Invalid Class Link</h2>
+            <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', lineHeight: 1.5 }}>
               This class code does not exist. Please check the link your course rep shared.
             </p>
           </div>
@@ -83,6 +84,70 @@ export default function SubmitPage() {
     )
   }
 
+  // Submissions Locked / Closed by Rep
+  if (classInfo?.is_locked) {
+    return (
+      <div className="page-container page-narrow">
+        <header className="page-header">
+          <div className="header-brand">
+            <div className="brand-icon">#</div>
+            <div>
+              <div className="brand-name">GroupAlloc</div>
+              <div className="brand-sub">{classInfo?.class_name}</div>
+            </div>
+          </div>
+        </header>
+        <main>
+          <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem', border: '2px solid #fde68a' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🔒</div>
+            <h2 className="card-title" style={{ color: '#92400e' }}>Submissions Closed</h2>
+            <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', lineHeight: 1.5 }}>
+              The course representative has currently locked submissions for <strong>{classInfo?.class_name}</strong>.
+            </p>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: '1rem' }}>
+              If you have not registered your group yet, please contact your course representative directly.
+            </p>
+          </div>
+        </main>
+        <footer className="page-footer">
+          <p>Group Number Allocation System</p>
+        </footer>
+      </div>
+    )
+  }
+
+  // Capacity full
+  if (classInfo?.is_full) {
+    return (
+      <div className="page-container page-narrow">
+        <header className="page-header">
+          <div className="header-brand">
+            <div className="brand-icon">#</div>
+            <div>
+              <div className="brand-name">GroupAlloc</div>
+              <div className="brand-sub">{classInfo?.class_name}</div>
+            </div>
+          </div>
+        </header>
+        <main>
+          <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem', border: '2px solid #fed7aa' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🛑</div>
+            <h2 className="card-title" style={{ color: '#9a3412' }}>All Group Slots Claimed</h2>
+            <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', lineHeight: 1.5 }}>
+              This class has reached its maximum limit of <strong>{classInfo?.max_groups} groups</strong>.
+            </p>
+            <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginTop: '1rem' }}>
+              Please speak with your course representative if your group still needs a presentation number.
+            </p>
+          </div>
+        </main>
+        <footer className="page-footer">
+          <p>Group Number Allocation System</p>
+        </footer>
+      </div>
+    )
+  }
+
   // Already submitted — show assigned number
   if (result) {
     return (
@@ -92,7 +157,7 @@ export default function SubmitPage() {
             <div className="brand-icon">#</div>
             <div>
               <div className="brand-name">GroupAlloc</div>
-              <div className="brand-sub">{className}</div>
+              <div className="brand-sub">{classInfo?.class_name}</div>
             </div>
           </div>
         </header>
@@ -135,10 +200,12 @@ export default function SubmitPage() {
           <div className="brand-icon">#</div>
           <div>
             <div className="brand-name">GroupAlloc</div>
-            <div className="brand-sub">{className}</div>
+            <div className="brand-sub">{classInfo?.class_name}</div>
           </div>
         </div>
-        <span className="badge">Group Submission</span>
+        <span className="badge">
+          {classInfo?.max_groups ? `${classInfo.total_groups || 0} / ${classInfo.max_groups} Groups` : 'Group Submission'}
+        </span>
       </header>
 
       <main>

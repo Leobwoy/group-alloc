@@ -13,6 +13,13 @@ export default function ClassDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [editingClass, setEditingClass] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editMax, setEditMax] = useState('')
+  const [groupToDelete, setGroupToDelete] = useState(null)
+  const [classToDelete, setClassToDelete] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
   const pollRef = useRef(null)
 
   useEffect(() => {
@@ -44,6 +51,81 @@ export default function ClassDetail() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleToggleLock() {
+    if (!classInfo) return
+    try {
+      await repAPI.updateClass(id, { is_locked: !classInfo.is_locked })
+      await loadData()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  function startEditing() {
+    setEditName(classInfo?.class_name || '')
+    setEditMax(classInfo?.max_groups ? String(classInfo.max_groups) : '')
+    setEditingClass(true)
+  }
+
+  async function handleSaveEdit(e) {
+    e.preventDefault()
+    if (!editName.trim()) return
+    setActionLoading(true)
+    try {
+      await repAPI.updateClass(id, {
+        class_name: editName.trim(),
+        max_groups: editMax ? parseInt(editMax, 10) : null
+      })
+      setEditingClass(false)
+      await loadData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function confirmDeleteGroup() {
+    if (!groupToDelete) return
+    setActionLoading(true)
+    try {
+      await repAPI.deleteGroup(id, groupToDelete.id)
+      setGroupToDelete(null)
+      await loadData()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function confirmDeleteClass() {
+    setActionLoading(true)
+    try {
+      await repAPI.deleteClass(id)
+      navigate('/admin')
+    } catch (err) {
+      setError(err.message)
+      setActionLoading(false)
+      setClassToDelete(false)
+    }
+  }
+
+  function copySubmissionLink() {
+    if (!classInfo) return
+    const url = `${window.location.origin}/submit/${classInfo.class_code}`
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  function shareWhatsApp() {
+    if (!classInfo) return
+    const url = `${window.location.origin}/submit/${classInfo.class_code}`
+    const text = `👋 Register your presentation group for *${classInfo.class_name}* here:\n${url}`
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   function getFiltered() {
@@ -93,7 +175,6 @@ export default function ClassDetail() {
       new Date(g.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     ])
 
-    // Safely invoke autoTable across bundlers
     const tableFn = typeof autoTable === 'function' ? autoTable : (autoTable?.default || (typeof doc.autoTable === 'function' ? doc.autoTable.bind(doc) : null));
     if (tableFn) {
       tableFn(doc, {
@@ -184,18 +265,62 @@ export default function ClassDetail() {
         <div className="header-brand">
           <div className="brand-icon">A</div>
           <div>
-            <div className="brand-name">{classInfo?.class_name || 'Loading...'}</div>
-            <div className="brand-sub">Code: <strong>{classInfo?.class_code || '...'}</strong></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <div className="brand-name">{classInfo?.class_name || 'Loading...'}</div>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={startEditing}
+                style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', minHeight: '26px' }}
+                title="Edit class name or max limit"
+              >
+                ✏️ Edit
+              </button>
+            </div>
+            <div className="brand-sub" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span>Code: <strong>{classInfo?.class_code || '...'}</strong></span>
+              {classInfo?.is_locked ? (
+                <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>🔒 Closed</span>
+              ) : (
+                <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>🟢 Open</span>
+              )}
+            </div>
           </div>
         </div>
         <div className="header-actions">
-          <span className="badge">{groups.length} group{groups.length === 1 ? '' : 's'}</span>
+          <span className="badge">
+            {groups.length} {classInfo?.max_groups ? `/ ${classInfo.max_groups} ` : ''}group{groups.length === 1 ? '' : 's'}
+          </span>
           <Link to="/admin" className="btn btn-secondary btn-sm">← All Classes</Link>
         </div>
       </header>
 
       <main>
         {error && <div className="alert alert-error">{error}</div>}
+
+        {/* Quick Share and Control Bar */}
+        <div className="card" style={{ padding: '0.75rem 1rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary btn-sm" onClick={copySubmissionLink}>
+              {copied ? '✓ Link Copied' : '📋 Copy Link'}
+            </button>
+            <button className="btn btn-success btn-sm" onClick={shareWhatsApp}>
+              💬 WhatsApp Share
+            </button>
+            <button
+              className={`btn btn-sm ${classInfo?.is_locked ? 'btn-secondary' : 'btn-warning'}`}
+              onClick={handleToggleLock}
+            >
+              {classInfo?.is_locked ? '🔓 Open Submissions' : '🔒 Lock Submissions'}
+            </button>
+          </div>
+          <button
+            className="btn btn-danger btn-sm"
+            onClick={() => setClassToDelete(true)}
+            style={{ marginLeft: 'auto' }}
+          >
+            🗑️ Delete Class
+          </button>
+        </div>
 
         <div className="toolbar">
           <div className="toolbar-left">
@@ -244,6 +369,7 @@ export default function ClassDetail() {
                       <th>Group Name</th>
                       <th>Leader Name</th>
                       <th style={{ width: '100px' }}>Time</th>
+                      <th style={{ width: '60px', textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -255,6 +381,16 @@ export default function ClassDetail() {
                         <td>{g.leader_name}</td>
                         <td style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>
                           {new Date(g.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            className="btn btn-danger btn-sm"
+                            onClick={() => setGroupToDelete(g)}
+                            style={{ padding: '0.2rem 0.5rem', minHeight: '28px', fontSize: '0.75rem' }}
+                            title="Remove group"
+                          >
+                            🗑️
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -268,7 +404,17 @@ export default function ClassDetail() {
                   <div key={g.id} className="mobile-order-card">
                     <div className="mobile-order-card-header">
                       <span className="mobile-order-num">Order #{i + 1}</span>
-                      <span className="group-badge">Group #{g.group_number}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span className="group-badge">Group #{g.group_number}</span>
+                        <button
+                          className="btn btn-danger btn-sm"
+                          onClick={() => setGroupToDelete(g)}
+                          style={{ padding: '0.2rem 0.45rem', minHeight: '26px', fontSize: '0.75rem' }}
+                          title="Remove group"
+                        >
+                          🗑️
+                        </button>
+                      </div>
                     </div>
                     <div className="mobile-order-card-body">
                       <div className="mobile-group-title">{g.group_name}</div>
@@ -286,6 +432,111 @@ export default function ClassDetail() {
             </>
           )}
         </div>
+
+        {/* Edit Class Modal */}
+        {editingClass && (
+          <div className="modal-backdrop">
+            <div className="modal-card">
+              <h3 style={{ marginBottom: '1rem' }}>Edit Class Settings</h3>
+              <form onSubmit={handleSaveEdit}>
+                <div className="form-group">
+                  <label className="form-label">Class Name *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    required
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Max Groups (Optional)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="form-input"
+                    placeholder="e.g. 15 (leave blank for unlimited)"
+                    value={editMax}
+                    onChange={e => setEditMax(e.target.value)}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.25rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setEditingClass(false)}
+                    disabled={actionLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-sm"
+                    disabled={actionLoading}
+                  >
+                    {actionLoading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Group Modal */}
+        {groupToDelete && (
+          <div className="modal-backdrop">
+            <div className="modal-card">
+              <h3 style={{ color: '#991b1b', marginBottom: '0.5rem' }}>Remove Group Submission?</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+                Are you sure you want to remove <strong>Group #{groupToDelete.group_number} ({groupToDelete.group_name})</strong>?
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setGroupToDelete(null)}
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-danger btn-sm"
+                  onClick={confirmDeleteGroup}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? 'Removing...' : 'Yes, Remove Group'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Class Modal */}
+        {classToDelete && (
+          <div className="modal-backdrop">
+            <div className="modal-card">
+              <h3 style={{ color: '#991b1b', marginBottom: '0.5rem' }}>Delete Entire Class?</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+                Are you sure you want to delete <strong>{classInfo?.class_name}</strong>? This action is permanent and will remove all {groups.length} group submissions.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setClassToDelete(false)}
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-danger btn-sm"
+                  onClick={confirmDeleteClass}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? 'Deleting...' : 'Yes, Delete Class'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       <footer className="page-footer">

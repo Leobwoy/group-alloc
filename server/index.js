@@ -49,15 +49,23 @@ async function initDB() {
 
     for (const stmt of statements) {
       try {
-        // Convert CREATE TABLE to CREATE TABLE IF NOT EXISTS
         const safeStmt = stmt.replace(/CREATE TABLE (\w+)/i, 'CREATE TABLE IF NOT EXISTS $1');
         await pool.query(safeStmt + ';');
       } catch (err) {
-        // Ignore "already exists" errors for constraints/indexes
         if (err.code !== '42P07' && err.code !== '42710') {
           console.warn('[DB Init Warning]', err.message);
         }
       }
+    }
+
+    // Run schema migrations for existing databases
+    try {
+      await pool.query(`
+        ALTER TABLE tenants ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE;
+        ALTER TABLE tenants ADD COLUMN IF NOT EXISTS max_groups INT DEFAULT NULL;
+      `);
+    } catch (migErr) {
+      console.warn('[DB Migration Warning]', migErr.message);
     }
 
     console.log('[DB] Schema initialized.');

@@ -40,7 +40,10 @@ export const repAPI = {
   login: (body) => request('/rep/login', { method: 'POST', body: JSON.stringify(body) }),
   getClasses: () => request('/rep/classes'),
   createClass: (body) => request('/rep/classes', { method: 'POST', body: JSON.stringify(body) }),
+  updateClass: (id, body) => request(`/rep/classes/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteClass: (id) => request(`/rep/classes/${id}`, { method: 'DELETE' }),
   getClassGroups: (id) => request(`/rep/classes/${id}/groups`),
+  deleteGroup: (classId, groupId) => request(`/rep/classes/${classId}/groups/${groupId}`, { method: 'DELETE' }),
   exportCSV: (id) => `${API_BASE}/rep/classes/${id}/export`,
 };
 

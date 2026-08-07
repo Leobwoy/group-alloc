@@ -71,11 +71,13 @@ router.post('/login', async (req, res) => {
 
 // POST /api/rep/classes — create a class
 router.post('/classes', auth, async (req, res) => {
-  const { class_name } = req.body;
+  const { class_name, max_groups } = req.body;
 
   if (!class_name?.trim()) {
     return res.status(400).json({ error: 'class_name is required.' });
   }
+
+  const parsedMax = max_groups && parseInt(max_groups, 10) > 0 ? parseInt(max_groups, 10) : null;
 
   const client = await pool.connect();
   try {
@@ -84,8 +86,8 @@ router.post('/classes', auth, async (req, res) => {
     const classCode = nanoid(8).toUpperCase();
 
     const tenantResult = await client.query(
-      'INSERT INTO tenants (class_name, class_code, course_rep_id) VALUES ($1, $2, $3) RETURNING *',
-      [class_name.trim(), classCode, req.repId]
+      'INSERT INTO tenants (class_name, class_code, course_rep_id, max_groups) VALUES ($1, $2, $3, $4) RETURNING *',
+      [class_name.trim(), classCode, req.repId, parsedMax]
     );
 
     await client.query(
@@ -126,9 +128,8 @@ router.get('/classes', auth, async (req, res) => {
 // GET /api/rep/classes/:id/groups — list submissions for a class
 router.get('/classes/:id/groups', auth, async (req, res) => {
   try {
-    // Verify ownership
     const tenantCheck = await pool.query(
-      'SELECT id, class_name, class_code FROM tenants WHERE id = $1 AND course_rep_id = $2',
+      'SELECT id, class_name, class_code, is_locked, max_groups, created_at FROM tenants WHERE id = $1 AND course_rep_id = $2',
       [req.params.id, req.repId]
     );
     if (tenantCheck.rows.length === 0) {
@@ -150,6 +151,117 @@ router.get('/classes/:id/groups', auth, async (req, res) => {
   }
 });
 
+// PATCH /api/rep/classes/:id — update class (name, lock state, max groups)
+router.patch('/classes/:id', auth, async (req, res) => {
+  const { class_name, is_locked, max_groups } = req.body;
+  try {
+    const tenantCheck = await pool.query(
+      'SELECT id FROM tenants WHERE id = $1 AND course_rep_id = $2',
+      [req.params.id, req.repId]
+    );
+    if (tenantCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Class not found.' });
+    }
+
+    const updates = [];
+    const values = [];
+    let idx = 1;
+
+    if (class_name !== undefined) {
+      if (!class_name.trim()) return res.status(400).json({ error: 'Class name cannot be empty.' });
+      updates.push(`class_name = $${idx++}`);
+      values.push(class_name.trim());
+    }
+
+    if (is_locked !== undefined) {
+      updates.push(`is_locked = $${idx++}`);
+      values.push(Boolean(is_locked));
+    }
+
+    if (max_groups !== undefined) {
+      const parsed = max_groups ? parseInt(max_groups, 10) : null;
+      updates.push(`max_groups = $${idx++}`);
+      values.push(parsed && parsed > 0 ? parsed : null);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields provided to update.' });
+    }
+
+    values.push(req.params.id);
+    const result = await pool.query(
+      `UPDATE tenants SET ${updates.join(', ')} WHERE id = $${idx} RETURNING *`,
+      values
+    );
+
+    res.json({ class: result.rows[0] });
+  } catch (err) {
+    console.error('[Update Class Error]', err.message);
+    res.status(500).json({ error: 'Server error.' });
+  }
+});
+
+// DELETE /api/rep/classes/:id — delete entire class and its submissions
+router.delete('/classes/:id', auth, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const classId = req.params.id;
+    await client.query('BEGIN');
+
+    const tenantCheck = await client.query(
+      'SELECT id, class_name FROM tenants WHERE id = $1 AND course_rep_id = $2',
+      [classId, req.repId]
+    );
+
+    if (tenantCheck.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Class not found.' });
+    }
+
+    await client.query('DELETE FROM groups WHERE tenant_id = $1', [classId]);
+    await client.query('DELETE FROM tenant_counters WHERE tenant_id = $1', [classId]);
+    await client.query('DELETE FROM tenants WHERE id = $1', [classId]);
+
+    await client.query('COMMIT');
+    res.json({ message: 'Class deleted successfully.' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[Delete Class Error]', err.message);
+    res.status(500).json({ error: 'Server error.' });
+  } finally {
+    client.release();
+  }
+});
+
+// DELETE /api/rep/classes/:id/groups/:groupId — remove a specific group submission
+router.delete('/classes/:id/groups/:groupId', auth, async (req, res) => {
+  try {
+    const { id: classId, groupId } = req.params;
+
+    const tenantCheck = await pool.query(
+      'SELECT id FROM tenants WHERE id = $1 AND course_rep_id = $2',
+      [classId, req.repId]
+    );
+    if (tenantCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Class not found.' });
+    }
+
+    const deleteRes = await pool.query(
+      'DELETE FROM groups WHERE id = $1 AND tenant_id = $2 RETURNING id, group_number, group_name',
+      [groupId, classId]
+    );
+
+    if (deleteRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Group not found.' });
+    }
+
+    res.json({ message: 'Group submission removed.', removed: deleteRes.rows[0] });
+  } catch (err) {
+    console.error('[Delete Group Error]', err.message);
+    res.status(500).json({ error: 'Server error.' });
+  }
+});
+
 // GET /api/rep/classes/:id/export — CSV export
 router.get('/classes/:id/export', auth, async (req, res) => {
   try {
@@ -166,13 +278,13 @@ router.get('/classes/:id/export', auth, async (req, res) => {
       [req.params.id]
     );
 
-    let csv = 'Group Number,Group Name,Leader Name,Submitted At\n';
-    for (const g of groups.rows) {
+    let csv = 'Order,Group Number,Group Name,Leader Name,Submitted At\n';
+    groups.rows.forEach((g, i) => {
       const escapedGroup = `"${(g.group_name || '').replace(/"/g, '""')}"`;
       const escapedLeader = `"${(g.leader_name || '').replace(/"/g, '""')}"`;
       const time = new Date(g.submitted_at).toLocaleString();
-      csv += `${g.group_number},${escapedGroup},${escapedLeader},"${time}"\n`;
-    }
+      csv += `${i + 1},${g.group_number},${escapedGroup},${escapedLeader},"${time}"\n`;
+    });
 
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="${tenantCheck.rows[0].class_name.replace(/[^a-z0-9]/gi, '_')}_roster.csv"`);
