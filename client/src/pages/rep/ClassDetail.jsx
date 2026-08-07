@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { repAPI, isAuthenticated, clearToken } from '../../lib/api'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import * as XLSX from 'xlsx'
 
 export default function ClassDetail() {
   const { id } = useParams()
@@ -118,21 +119,61 @@ export default function ClassDetail() {
     doc.save(`${name}_Roster_${new Date().toISOString().slice(0, 10)}.pdf`)
   }
 
+  function handleDownloadExcel() {
+    if (groups.length === 0) return
+
+    const sorted = [...groups].sort((a, b) => a.group_number - b.group_number)
+    const data = [
+      ['Order', 'Group Number', 'Group Name', 'Leader Name', 'Submission Time'],
+      ...sorted.map((g, i) => [
+        i + 1,
+        `Group ${g.group_number}`,
+        g.group_name,
+        g.leader_name,
+        new Date(g.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      ])
+    ]
+
+    const ws = XLSX.utils.aoa_to_sheet(data)
+    ws['!cols'] = [
+      { wch: 10 },
+      { wch: 15 },
+      { wch: 28 },
+      { wch: 24 },
+      { wch: 18 }
+    ]
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Presentation Roster')
+
+    const safeName = (classInfo?.class_name || 'Roster').replace(/[^a-z0-9]/gi, '_')
+    const dateStr = new Date().toISOString().slice(0, 10)
+    XLSX.writeFile(wb, `${safeName}_Roster_${dateStr}.xlsx`)
+  }
+
   function handleDownloadCSV() {
-    const token = localStorage.getItem('rep_token')
-    const apiBase = import.meta.env.VITE_API_URL || '/api'
-    fetch(`${apiBase}/rep/classes/${id}/export`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(res => res.blob())
-      .then(blob => {
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${classInfo?.class_name || 'roster'}_export.csv`
-        a.click()
-        URL.revokeObjectURL(url)
-      })
+    if (groups.length === 0) return
+    const sorted = [...groups].sort((a, b) => a.group_number - b.group_number)
+    const headers = ['Order', 'Group Number', 'Group Name', 'Leader Name', 'Submission Time']
+    const rows = sorted.map((g, i) => [
+      i + 1,
+      `"Group ${g.group_number}"`,
+      `"${(g.group_name || '').replace(/"/g, '""')}"`,
+      `"${(g.leader_name || '').replace(/"/g, '""')}"`,
+      `"${new Date(g.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}"`
+    ])
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const safeName = (classInfo?.class_name || 'Roster').replace(/[^a-z0-9]/gi, '_')
+    a.download = `${safeName}_Roster_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   const filtered = getFiltered()
@@ -158,6 +199,9 @@ export default function ClassDetail() {
 
         <div className="toolbar">
           <div className="toolbar-left">
+            <button className="btn btn-success btn-sm" onClick={handleDownloadExcel} disabled={groups.length === 0}>
+              Download Excel (.xlsx)
+            </button>
             <button className="btn btn-primary btn-sm" onClick={handleDownloadPDF} disabled={groups.length === 0}>
               Download PDF
             </button>

@@ -263,6 +263,20 @@ body {
   transform: none;
 }
 
+.btn-success {
+  background: linear-gradient(135deg, #059669, #047857);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+}
+.btn-success:hover {
+  box-shadow: 0 6px 16px rgba(5, 150, 105, 0.35);
+}
+.btn-success:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .btn-secondary {
   background: #fff;
   color: var(--text-main);
@@ -680,7 +694,8 @@ body {
   .toolbar-left {
     width: 100%;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.5rem;
   }
   .toolbar-left .btn {
     width: 100%;
